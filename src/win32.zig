@@ -1,0 +1,270 @@
+const std = @import("std");
+const Game = @import("./game.zig");
+const c = @cImport({
+    @cInclude("windows.h");
+});
+
+fn fail(code: u32, comptime size: u32, msg: *[size]u8) noreturn {
+    const fmt = c.FormatMessageA(c.FORMAT_MESSAGE_FROM_SYSTEM, c.NULL, code, 0, msg, size, 0);
+    if (fmt == 0) {
+        std.log.crit("FormatMessageA fault (Lookup code {} at https://docs.microsoft.com/en-us/windows/win32/debug/system-error-codes)", .{c.GetLastError()});
+    } else if (fmt != 0) {
+        const prefix = if (code == 0) "(Could not get error) " else "";
+        std.log.crit("{s}{}: {s}", .{ prefix, code, msg });
+    }
+    std.os.exit(0);
+}
+
+const targetFps = 60.0;
+
+var Window: c.HWND = 0;
+const ErrorSize = 65535;
+var ErrorMessage: [ErrorSize]u8 = undefined;
+
+var GWin = Game.Window{
+    .Width = 400,
+    .Height = 300,
+    .BufSize = 0,
+    .Buf = undefined,
+};
+
+const Screen = struct {
+    Width: u32,
+    Height: u32,
+};
+
+var screen = Screen{
+    .Width = 0,
+    .Height = 0,
+};
+
+var Controls = Game.Controls{
+    .Left = Game.KeyState{ .Changed = false, .Pressed = false },
+    .Up = Game.KeyState{ .Changed = false, .Pressed = false },
+    .Right = Game.KeyState{ .Changed = false, .Pressed = false },
+    .Down = Game.KeyState{ .Changed = false, .Pressed = false },
+    .Space = Game.KeyState{ .Changed = false, .Pressed = false },
+    .Q = Game.KeyState{ .Changed = false, .Pressed = false },
+};
+
+var State = Game.GameState{
+    .OffsetX = 0,
+    .OffsetY = 0,
+    .Hue = 0,
+    .Player = .{
+        .X = 0,
+        .Y = 0,
+    },
+};
+
+fn resize(w: c.HWND, gw: *Game.Window, s: *Screen) void {
+    var rect = c.RECT{
+        .left = 0,
+        .top = 0,
+        .right = 0,
+        .bottom = 0,
+    };
+    if (w != 0 and c.GetClientRect(w, &rect) == 0) {
+        return fail(c.GetLastError(), ErrorSize, &ErrorMessage);
+    }
+    s.Width = @intCast(u32, rect.right - rect.left);
+    s.Height = @intCast(u32, rect.bottom - rect.top);
+
+    // Uncomment to use real width / height
+    // gw.Width = s.Width;
+    // gw.Height = s.Height;
+
+    const size = @intCast(u32, gw.Width * gw.Height * 4);
+    if (size == 0) {
+        return;
+    }
+
+    if (gw.BufSize != 0 and c.VirtualFree(gw.Buf, 0, c.MEM_RELEASE) == 0) {
+        return fail(c.GetLastError(), ErrorSize, &ErrorMessage);
+    }
+
+    const mem = c.VirtualAlloc(c.NULL, size, c.MEM_RESERVE | c.MEM_COMMIT, c.PAGE_READWRITE);
+    if (mem) |m| {
+        gw.Buf = @ptrCast([*]u8, m);
+        gw.BufSize = size;
+    } else {
+        return fail(c.GetLastError(), ErrorSize, &ErrorMessage);
+    }
+}
+
+var freq: struct { QuadPart: i64 } = .{ .QuadPart = 0 };
+var time: struct { QuadPart: i64 } = .{ .QuadPart = 0 };
+
+fn paint() void {
+    if (GWin.BufSize == 0) {
+        return;
+    }
+    const result = Game.loop(&GWin, &Controls, &State);
+    Controls.Q.Changed = false;
+    Controls.Left.Changed = false;
+    Controls.Up.Changed = false;
+    Controls.Down.Changed = false;
+    Controls.Space.Changed = false;
+    const start = time.QuadPart;
+    if (c.QueryPerformanceCounter(@ptrCast([*c]c.LARGE_INTEGER, &time)) == 0) {
+        return fail(c.GetLastError(), ErrorSize, &ErrorMessage);
+    }
+    const loopTime = @intToFloat(f32, @divTrunc((time.QuadPart - start) *% 1000000, freq.QuadPart)) / 1000.0;
+    // std.log.crit("ms/f: {d:.3}, fps: {d:.3}", .{ loopTime, 1000 / loopTime });
+    if (loopTime > 0 and loopTime < (1000.0 / targetFps)) {
+        c.Sleep(@floatToInt(u32, 1000.0 / targetFps - loopTime));
+    }
+    if (result == Game.Result.Exit) {
+        std.os.exit(0);
+    }
+    var info = c.BITMAPINFO{
+        .bmiHeader = c.BITMAPINFOHEADER{
+            .biSize = @sizeOf(c.BITMAPINFOHEADER),
+            .biWidth = @intCast(c_long, GWin.Width),
+            .biHeight = -@intCast(c_long, GWin.Height),
+            .biPlanes = 1,
+            .biBitCount = 32,
+            .biCompression = 0,
+            .biSizeImage = 0,
+            .biXPelsPerMeter = 0,
+            .biYPelsPerMeter = 0,
+            .biClrUsed = 0,
+            .biClrImportant = 0,
+        },
+        .bmiColors = [1]c.RGBQUAD{
+            c.RGBQUAD{
+                .rgbBlue = 0,
+                .rgbGreen = 0,
+                .rgbRed = 0,
+                .rgbReserved = 0,
+            },
+        },
+    };
+    const gameWidth = @intCast(c_int, GWin.Width);
+    const gameHeight = @intCast(c_int, GWin.Height);
+    const screenWidth = @intCast(c_int, screen.Width);
+    const screenHeight = @intCast(c_int, screen.Height);
+    const res = c.StretchDIBits(
+        c.GetDC(Window),
+        0,
+        0,
+        screenWidth,
+        screenHeight,
+        0,
+        0,
+        gameWidth,
+        gameHeight,
+        GWin.Buf,
+        &info,
+        c.DIB_RGB_COLORS,
+        c.SRCCOPY,
+    );
+    if (res == 0) {
+        return fail(c.GetLastError(), ErrorSize, &ErrorMessage);
+    }
+}
+
+fn windowCallback(hWnd: c.HWND, Msg: c.UINT, wParam: c.WPARAM, lParam: c.LPARAM) callconv(.C) c.LRESULT {
+    return switch (Msg) {
+        c.WM_SIZE => {
+            resize(Window, &GWin, &screen);
+            return 0;
+        },
+        c.WM_PAINT => {
+            paint();
+            return 0;
+        },
+        c.WM_KEYDOWN,
+        c.WM_KEYUP,
+        c.WM_SYSKEYDOWN,
+        c.WM_SYSKEYUP,
+        c.WM_LBUTTONDOWN,
+        c.WM_LBUTTONUP,
+        c.WM_RBUTTONDOWN,
+        c.WM_RBUTTONUP,
+        => {
+            const Control = switch (wParam) {
+                81 => &Controls.Q,
+                37, 65 => &Controls.Left,
+                38, 87 => &Controls.Up,
+                39, 68 => &Controls.Right,
+                40, 83 => &Controls.Down,
+                32 => &Controls.Space,
+                else => null, // else => std.log.info("key pressed: {}", .{wParam}),
+            };
+            if (Control) |ctrl| {
+                const Pressed = Msg == c.WM_KEYDOWN;
+                ctrl.Changed = Pressed != ctrl.Pressed;
+                ctrl.Pressed = Pressed;
+            }
+            return 0;
+        },
+        c.WM_CLOSE,
+        c.WM_QUIT,
+        => std.os.exit(0),
+        else => c.DefWindowProcA(hWnd, Msg, wParam, lParam),
+    };
+}
+
+pub fn main() void {
+    if (std.builtin.mode != std.builtin.Mode.Debug) {
+        _ = c.FreeConsole();
+    }
+    const Instance = c.GetModuleHandleA(0);
+    if (Instance == 0) {
+        return fail(c.GetLastError(), ErrorSize, &ErrorMessage);
+    }
+    const WindowClass = c.WNDCLASSA{
+        .style = c.CS_HREDRAW | c.CS_VREDRAW | c.CS_OWNDC,
+        .lpfnWndProc = windowCallback,
+        .cbClsExtra = 0,
+        .cbWndExtra = 0,
+        .hInstance = Instance,
+        .hIcon = 0,
+        .hCursor = c.LoadCursorA(0, 32512),
+        .hbrBackground = 0,
+        .lpszMenuName = 0,
+        .lpszClassName = "ThomasGameWindowClass",
+    };
+    if (c.RegisterClassA(&WindowClass) == 0) {
+        return fail(c.GetLastError(), ErrorSize, &ErrorMessage);
+    }
+    Window = c.CreateWindowA(WindowClass.lpszClassName, // lpClassName
+        "Thomas Game", // lpWindowName
+        0x10CF0000, // dwStyle
+        c.CW_USEDEFAULT, // X
+        c.CW_USEDEFAULT, // Y
+        c.CW_USEDEFAULT, // nWidth
+        c.CW_USEDEFAULT, // nHeight
+        0, // hWndParent
+        0, // hMenu
+        Instance, // hInstance
+        c.NULL // lpParam
+    );
+    if (Window == 0) {
+        return fail(c.GetLastError(), ErrorSize, &ErrorMessage);
+    }
+
+    if (c.QueryPerformanceFrequency(@ptrCast([*c]c.LARGE_INTEGER, &freq)) == 0) {
+        return fail(c.GetLastError(), ErrorSize, &ErrorMessage);
+    }
+
+    var tagMsg = c.tagMSG{
+        .hwnd = 0,
+        .message = 0,
+        .wParam = 0,
+        .lParam = 0,
+        .time = 0,
+        .pt = c.POINT{ .x = 0, .y = 0 },
+    };
+    const lpMsg: c.LPMSG = &tagMsg;
+
+    resize(Window, &GWin, &screen);
+    while (true) {
+        paint();
+        while (c.PeekMessageA(lpMsg, Window, 0, 0, c.PM_REMOVE) != 0) {
+            _ = c.TranslateMessage(lpMsg);
+            _ = c.DispatchMessageA(lpMsg);
+        }
+    }
+}

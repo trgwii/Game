@@ -1,8 +1,8 @@
-import { readLines } from "https://deno.land/std@0.90.0/io/bufio.ts";
+import { readLines } from "https://deno.land/std@0.97.0/io/bufio.ts";
 
 const proc = Deno.run({
   env: {
-    PLUGIN_URL: "pane.dll",
+    // PLUGIN_URL: "pane.dll",
   },
   cmd: ["deno", "run", "-A", "--unstable", "pane.ts"],
   stderr: "piped",

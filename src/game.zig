@@ -1,0 +1,113 @@
+const std = @import("std");
+
+pub const Window = struct {
+    Width: u32,
+    Height: u32,
+    BufSize: u32,
+    Buf: [*]u8,
+};
+
+pub const GameState = struct {
+    OffsetY: i32,
+    OffsetX: i32,
+    Hue: u3,
+    Player: struct {
+        X: u32,
+        Y: u32,
+    },
+};
+
+pub const KeyState = struct {
+    Changed: bool,
+    Pressed: bool,
+};
+
+pub const Controls = struct {
+    Left: KeyState,
+    Up: KeyState,
+    Right: KeyState,
+    Down: KeyState,
+    Space: KeyState,
+    Q: KeyState,
+};
+
+pub const Result = enum {
+    Ok,
+    Exit,
+};
+
+var rand = std.rand.DefaultPrng.init(0xFFFFFFFFFFFFFFFF);
+
+fn vary(variance: u8, middle: u8) u8 {
+    return @floatToInt(u8, rand.random.float(f32) * @intToFloat(f32, variance) * 2) + middle;
+}
+
+const pi = 3.141592653589793;
+
+fn circle(x: u32, y: u32, r: f32, edges: bool, width: u32, bufSize: u32, buf: [*]u8, hue: u3) void {
+    var i: f32 = 0;
+    while (i < 360) {
+        const angle = i;
+        const row = @fabs(@floor(r * @sin(angle * pi / 180)));
+        const col = @fabs(@floor(r * @cos(angle * pi / 180)));
+        // std.log.crit("{}, {}", .{ row, col });
+        const offset = ((@floatToInt(u32, col) + x) + (@floatToInt(u32, row) + y) * width) * 4;
+        if (offset + 3 < bufSize) {
+            buf[offset + hue] = @floatToInt(u8, @floor(@intToFloat(f32, buf[offset + hue]) * 0.9));
+            buf[offset + (hue + 1) % 3] = vary(16, 128);
+        }
+        i += 0.1;
+    }
+    if (!edges) {
+        var r2 = r - 1;
+        while (r2 > 0) {
+            circle(x, y, r2, edges, width, bufSize, buf, hue);
+            r2 -= 1;
+        }
+    }
+}
+
+pub fn loop(w: *Window, c: *Controls, s: *GameState) Result {
+    { // controls
+        if (c.Q.Pressed) {
+            return Result.Exit;
+        }
+
+        s.Player.X -= @boolToInt(c.Left.Pressed);
+        s.Player.Y -= @boolToInt(c.Up.Pressed);
+        s.Player.X += @boolToInt(c.Right.Pressed);
+        s.Player.Y += @boolToInt(c.Down.Pressed);
+        if (c.Space.Changed and c.Space.Pressed) {
+            s.Hue = (s.Hue + 1) % 3;
+        }
+    }
+    { // paint
+        const Width = w.Width;
+        const BufSize = w.BufSize;
+        const Buf = w.Buf;
+        // const X = @intCast(u32, @mod(s.OffsetX, 255));
+        // const Y = @intCast(u32, @mod(s.OffsetY, 255));
+        var i: u32 = 0;
+        while (i < BufSize) {
+            if (rand.random.int(u32) < @floatToInt(u32, (4294967295 * 0.7))) {
+                i += 4;
+                continue;
+            }
+            const pixel = i / 4;
+            const col = @mod(pixel, Width);
+            const row = pixel / Width;
+            Buf[i] = 0; // Blue
+            Buf[i + 1] = 0; // Green
+            Buf[i + 2] = 0; // Red
+            Buf[i + 3] = 0; // XX
+            if (row % 2 != 0 or col % 2 != 0 or row % 3 != 0) {
+                i += 4;
+                continue;
+            }
+            Buf[i + s.Hue] = vary(16, 64);
+            i += 4;
+        }
+        circle(s.Player.X, s.Player.Y, 4.9, false, w.Width, w.BufSize, w.Buf, s.Hue);
+    }
+    return Result.Ok;
+}
