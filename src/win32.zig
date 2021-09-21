@@ -22,8 +22,8 @@ const ErrorSize = 65535;
 var ErrorMessage: [ErrorSize]u8 = undefined;
 
 var GWin = Game.Window{
-    .Width = 400,
-    .Height = 300,
+    .Width = 800,
+    .Height = 600,
     .BufSize = 0,
     .Buf = undefined,
 };
@@ -54,6 +54,7 @@ var State = Game.GameState{
     .Player = .{
         .X = 0,
         .Y = 0,
+        .Speed = 3,
     },
 };
 
