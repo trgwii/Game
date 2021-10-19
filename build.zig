@@ -11,13 +11,32 @@ pub fn build(b: *std.build.Builder) void {
     // between Debug, ReleaseSafe, ReleaseFast, and ReleaseSmall.
     const mode = b.standardReleaseOptions();
 
-    const exe = b.addExecutable("Game", "src/win32.zig");
+    if (target.isWindows()) {
+        const exe = b.addExecutable("Game", "src/win32.zig");
+        exe.setTarget(target);
+        exe.setBuildMode(mode);
+        exe.linkSystemLibrary("c");
+        exe.linkSystemLibrary("gdi32");
+        // exe.linkSystemLibrary("user32");
+        // exe.linkSystemLibrary("kernel32");
+        exe.install();
+
+        const run_cmd = exe.run();
+        run_cmd.step.dependOn(b.getInstallStep());
+        if (b.args) |args| {
+            run_cmd.addArgs(args);
+        }
+
+        const run_step = b.step("run", "Run the app");
+        run_step.dependOn(&run_cmd.step);
+        return;
+    }
+
+    const exe = b.addExecutable("Game", "src/linux.zig");
     exe.setTarget(target);
     exe.setBuildMode(mode);
-    exe.linkSystemLibrary("c");
-    exe.linkSystemLibrary("gdi32");
-    // exe.linkSystemLibrary("user32");
-    // exe.linkSystemLibrary("kernel32");
+    exe.linkLibC();
+    exe.linkSystemLibrary("X11");
     exe.install();
 
     const run_cmd = exe.run();
