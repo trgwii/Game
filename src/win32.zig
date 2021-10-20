@@ -169,7 +169,7 @@ fn paint() void {
     str = std.fmt.bufPrint(str, "Frame {d}", .{frame}) catch undefined;
     frame += 1;
     _ = c.SetBkMode(dc, c.TRANSPARENT);
-    _ = c.SetTextColor(dc, 0xFFFFFFFF);
+    _ = c.SetTextColor(dc, 0x00FFFFFF);
     _ = c.TextOutA(dc, 180, 180, str.ptr, @intCast(c_int, str.len));
     if (res == 0) {
         return fail(c.GetLastError(), ErrorSize, &ErrorMessage);
