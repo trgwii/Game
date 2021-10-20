@@ -192,7 +192,7 @@ pub fn main() void {
             str = std.fmt.bufPrint(str, "Frame: {d}", .{frame}) catch undefined;
 
             _ = c.XSetForeground(d, screenOfDisplay(d, s).*.default_gc, 0xFFFFFFFF);
-            _ = c.XDrawString(d, w, screenOfDisplay(d, s).*.default_gc, 110, 110, str.ptr, @intCast(c_int, str.len));
+            _ = c.XDrawString(d, w, screenOfDisplay(d, s).*.default_gc, 0, 10, str.ptr, @intCast(c_int, str.len));
         }
     }
     _ = c.XCloseDisplay(d);
