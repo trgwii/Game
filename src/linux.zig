@@ -77,6 +77,7 @@ pub fn main() void {
         std.log.crit("Cannot open display\n", .{});
         return std.os.exit(1);
     }
+    var frame: u64 = 0;
     const s: i32 = std.zig.c_translation.cast(c._XPrivDisplay, d).*.default_screen;
     const w: c.Window = c.XCreateSimpleWindow(
         d,
@@ -126,9 +127,9 @@ pub fn main() void {
         while (c.XPending(d) > 0) {
             _ = c.XNextEvent(d, &e);
             if (e.type == c.Expose) {
-                if (GWin.BufSize > 0) {
-                    _ = c.XPutImage(d, w, screenOfDisplay(d, s).*.default_gc, i, 0, 0, 0, 0, GWin.Width, GWin.Height);
-                }
+                // if (GWin.BufSize > 0) {
+                //     _ = c.XPutImage(d, w, screenOfDisplay(d, s).*.default_gc, i, 0, 0, 0, 0, GWin.Width, GWin.Height);
+                // }
             }
             if (e.type == c.ConfigureNotify) {
                 if (e.xconfigure.width != screen.Width or e.xconfigure.height != screen.Height) {
@@ -184,6 +185,13 @@ pub fn main() void {
                 GWin.Width, // unsigned int width
                 GWin.Height, // unsigned int height
             );
+            var str: []u8 = undefined;
+            str.ptr = @ptrCast([*]u8, c.malloc(40).?);
+            str.len = 40;
+            frame += 1;
+            str = std.fmt.bufPrint(str, "Frame: {d}", .{frame}) catch undefined;
+
+            _ = c.XDrawString(d, w, screenOfDisplay(d, s).*.default_gc, 110, 110, str.ptr, @intCast(c_int, str.len));
         }
     }
     _ = c.XCloseDisplay(d);
