@@ -166,7 +166,7 @@ fn paint() void {
     var str: []u8 = undefined;
     str.ptr = @ptrCast([*]u8, c.VirtualAlloc(c.NULL, 40, c.MEM_RESERVE | c.MEM_COMMIT, c.PAGE_READWRITE).?);
     str.len = 40;
-    str = std.fmt.bufPrint(str, "Frame {d}", .{frame}) catch undefined;
+    str = std.fmt.bufPrint(str, "f {d}; ms/f {d:.3}; fps {d:.3}", .{ frame, loopTime, 1000 / loopTime }) catch undefined;
     frame += 1;
     _ = c.SetBkMode(dc, c.TRANSPARENT);
     _ = c.SetTextColor(dc, 0x00FFFFFF);
