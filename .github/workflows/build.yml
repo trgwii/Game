@@ -3,8 +3,6 @@ on: push
 jobs:
   build:
     runs-on: ubuntu-20.04
-    strategy:
-      fail-fast: false
     steps:
       - uses: actions/checkout@v2
       - uses: goto-bus-stop/setup-zig@v1
@@ -15,7 +13,11 @@ jobs:
       - run: zig build  -Dtarget=x86_64-windows -Drelease-fast -Dcpu=x86_64
       - uses: actions/upload-artifact@v2
         with:
-          name: binary
+          name: Game
           path: |
             zig-out/bin/Game
+      - uses: actions/upload-artifact@v2
+        with:
+          name: Game.exe
+          path: |
             zig-out/bin/Game.exe
