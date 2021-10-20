@@ -208,7 +208,7 @@ fn windowCallback(hWnd: c.HWND, Msg: c.UINT, wParam: c.WPARAM, lParam: c.LPARAM)
 }
 
 pub fn main() void {
-    if (std.builtin.mode != std.builtin.Mode.Debug) {
+    if (@import("builtin").mode != std.builtin.Mode.Debug) {
         _ = c.FreeConsole();
     }
     const Instance = c.GetModuleHandleA(0);

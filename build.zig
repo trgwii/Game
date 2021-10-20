@@ -15,7 +15,7 @@ pub fn build(b: *std.build.Builder) void {
         const exe = b.addExecutable("Game", "src/win32.zig");
         exe.setTarget(target);
         exe.setBuildMode(mode);
-        exe.linkSystemLibrary("c");
+        exe.linkLibC();
         exe.linkSystemLibrary("gdi32");
         // exe.linkSystemLibrary("user32");
         // exe.linkSystemLibrary("kernel32");
