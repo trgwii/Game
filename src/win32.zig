@@ -96,6 +96,8 @@ fn resize(w: c.HWND, gw: *Game.Window, s: *Screen) void {
 var freq: struct { QuadPart: i64 } = .{ .QuadPart = 0 };
 var time: struct { QuadPart: i64 } = .{ .QuadPart = 0 };
 
+var frame: u64 = 0;
+
 fn paint() void {
     if (GWin.BufSize == 0) {
         return;
@@ -145,8 +147,9 @@ fn paint() void {
     const gameHeight = @intCast(c_int, GWin.Height);
     const screenWidth = @intCast(c_int, screen.Width);
     const screenHeight = @intCast(c_int, screen.Height);
+    const dc: c.HDC = c.GetDC(Window);
     const res = c.StretchDIBits(
-        c.GetDC(Window),
+        dc,
         0,
         0,
         screenWidth,
@@ -160,6 +163,14 @@ fn paint() void {
         c.DIB_RGB_COLORS,
         c.SRCCOPY,
     );
+    var str: []u8 = undefined;
+    str.ptr = @ptrCast([*]u8, c.VirtualAlloc(c.NULL, 40, c.MEM_RESERVE | c.MEM_COMMIT, c.PAGE_READWRITE).?);
+    str.len = 40;
+    str = std.fmt.bufPrint(str, "Frame {d}", .{frame}) catch undefined;
+    frame += 1;
+    _ = c.SetBkMode(dc, c.TRANSPARENT);
+    _ = c.SetTextColor(dc, 0xFFFFFFFF);
+    _ = c.TextOutA(dc, 180, 180, str.ptr, @intCast(c_int, str.len));
     if (res == 0) {
         return fail(c.GetLastError(), ErrorSize, &ErrorMessage);
     }
