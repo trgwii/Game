@@ -4,6 +4,8 @@ const c = @cImport({
     @cInclude("stdlib.h");
     @cInclude("X11/Xlib.h");
     @cInclude("X11/Xutil.h");
+    @cInclude("time.h");
+    @cInclude("unistd.h");
 });
 
 pub fn screenOfDisplay(d: ?*c.Display, s: i32) [*c]c.Screen {
@@ -123,6 +125,7 @@ pub fn main() void {
         8, // int bitmap_pad
         @intCast(c_int, GWin.Width * 4), // int bytes_per_line
     );
+    var timespec = c.struct_timespec{ .tv_sec = 0, .tv_nsec = 0 };
     while (true) {
         while (c.XPending(d) > 0) {
             _ = c.XNextEvent(d, &e);
@@ -185,15 +188,22 @@ pub fn main() void {
                 GWin.Width, // unsigned int width
                 GWin.Height, // unsigned int height
             );
+            var prev: f64 = @intToFloat(f64, timespec.tv_sec);
+            prev += @intToFloat(f64, timespec.tv_nsec) / 1e+9;
+            _ = c.clock_gettime(0, &timespec);
+            var cur: f64 = @intToFloat(f64, timespec.tv_sec);
+            cur += @intToFloat(f64, timespec.tv_nsec) / 1e+9;
+            const loopTime = (cur - prev) * 1000.0;
             var str: []u8 = undefined;
             str.ptr = @ptrCast([*]u8, c.malloc(40).?);
             str.len = 40;
             frame += 1;
-            str = std.fmt.bufPrint(str, "Frame: {d}", .{frame}) catch undefined;
 
+            str = std.fmt.bufPrint(str, "f {d}; ms/f {d:.3}; fps {d:.3}", .{ frame, loopTime, 1000 / loopTime }) catch undefined;
             _ = c.XSetForeground(d, screenOfDisplay(d, s).*.default_gc, 0xFFFFFFFF);
             _ = c.XDrawString(d, w, screenOfDisplay(d, s).*.default_gc, 0, 10, str.ptr, @intCast(c_int, str.len));
         }
     }
+
     _ = c.XCloseDisplay(d);
 }
