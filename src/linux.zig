@@ -54,6 +54,22 @@ pub fn xErrorHandler(d: ?*c.Display, e: [*c]c.XErrorEvent) callconv(.C) c_int {
     return 0;
 }
 
+fn resize() void {
+    const size = @intCast(u32, GWin.Width * GWin.Height * 4);
+    if (GWin.BufSize > 0) {
+        std.log.info("free {}", .{GWin.BufSize});
+        c.free(GWin.Buf);
+        GWin.BufSize = 0;
+    }
+    std.log.info("malloc {}", .{size});
+    const mem = c.malloc(size);
+    if (mem) |m| {
+        std.log.info("malloc ok: {}", .{size});
+        GWin.Buf = @ptrCast([*]u8, m);
+        GWin.BufSize = size;
+    }
+}
+
 pub fn main() void {
     _ = c.XSetErrorHandler(xErrorHandler);
     const d: ?*c.Display = c.XOpenDisplay(0);
@@ -73,16 +89,9 @@ pub fn main() void {
         screenOfDisplay(d, s).*.black_pixel,
         screenOfDisplay(d, s).*.white_pixel,
     );
-    _ = c.XSelectInput(d, w, c.ExposureMask | c.KeyPressMask | c.KeyReleaseMask);
+    _ = c.XSelectInput(d, w, c.ExposureMask | c.KeyPressMask | c.KeyReleaseMask | c.StructureNotifyMask);
     _ = c.XMapWindow(d, w);
     var e: c.XEvent = undefined;
-    const size = @intCast(u32, GWin.Width * GWin.Height * 4);
-    const mem = c.malloc(size);
-    if (mem) |m| {
-        std.log.info("malloc: {}", .{size});
-        GWin.Buf = @ptrCast([*]u8, m);
-        GWin.BufSize = size;
-    }
     var v: c.XVisualInfo = c.XVisualInfo{
         .visual = null,
         .visualid = 0,
@@ -100,6 +109,7 @@ pub fn main() void {
     if (c.XMatchVisualInfo(d, c.XDefaultScreen(d), 32, c.TrueColor, &v) == 0) {
         std.os.exit(1);
     }
+    resize();
     const i: [*c]c.XImage = c.XCreateImage(
         d, // Display *display
         v.visual, // Visual *visual
@@ -116,7 +126,21 @@ pub fn main() void {
         while (c.XPending(d) > 0) {
             _ = c.XNextEvent(d, &e);
             if (e.type == c.Expose) {
-                _ = c.XPutImage(d, w, screenOfDisplay(d, s).*.default_gc, i, 0, 0, 0, 0, GWin.Width, GWin.Height);
+                if (GWin.BufSize > 0) {
+                    _ = c.XPutImage(d, w, screenOfDisplay(d, s).*.default_gc, i, 0, 0, 0, 0, GWin.Width, GWin.Height);
+                }
+            }
+            if (e.type == c.ConfigureNotify) {
+                if (e.xconfigure.width != screen.Width or e.xconfigure.height != screen.Height) {
+                    std.log.info("{}", .{e.xconfigure});
+                    GWin.Width = @intCast(u32, e.xconfigure.width);
+                    GWin.Height = @intCast(u32, e.xconfigure.height);
+                    resize();
+                    i.*.data = GWin.Buf;
+                    i.*.width = @intCast(c_int, GWin.Width);
+                    i.*.height = @intCast(c_int, GWin.Height);
+                    i.*.bytes_per_line = @intCast(c_int, GWin.Width * 4);
+                }
             }
             if (e.type == c.KeyPress or e.type == c.KeyRelease) {
                 const Control = switch (e.xkey.keycode) {
@@ -147,18 +171,20 @@ pub fn main() void {
                 break;
             }
         }
-        _ = c.XPutImage(
-            d, // Display *display
-            w, // Drawable d
-            screenOfDisplay(d, s).*.default_gc, // GC gc
-            i, // XImage *image
-            0, // int src_x
-            0, // int src_y
-            0, // int dest_x
-            0, // int dest_y
-            GWin.Width, // unsigned int width
-            GWin.Height, // unsigned int height
-        );
+        if (GWin.BufSize > 0) {
+            _ = c.XPutImage(
+                d, // Display *display
+                w, // Drawable d
+                screenOfDisplay(d, s).*.default_gc, // GC gc
+                i, // XImage *image
+                0, // int src_x
+                0, // int src_y
+                0, // int dest_x
+                0, // int dest_y
+                GWin.Width, // unsigned int width
+                GWin.Height, // unsigned int height
+            );
+        }
     }
     _ = c.XCloseDisplay(d);
 }
