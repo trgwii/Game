@@ -3,11 +3,22 @@ const Game = @import("./game.zig");
 const c = @cImport({
     @cInclude("stdlib.h");
     @cInclude("X11/Xlib.h");
+    @cInclude("X11/Xutil.h");
 });
 
 pub fn screenOfDisplay(d: ?*c.Display, s: i32) [*c]c.Screen {
     return &std.zig.c_translation.cast(c._XPrivDisplay, d).*.screens[@intCast(usize, s)];
 }
+
+const Screen = struct {
+    Width: u32,
+    Height: u32,
+};
+
+var screen = Screen{
+    .Width = 0,
+    .Height = 0,
+};
 
 var GWin = Game.Window{
     .Width = 800,
@@ -36,17 +47,34 @@ var State = Game.GameState{
     },
 };
 
+pub fn xErrorHandler(d: ?*c.Display, e: [*c]c.XErrorEvent) callconv(.C) c_int {
+    var text: [100]u8 = undefined;
+    _ = c.XGetErrorText(d, e.*.error_code, &text, 100);
+    std.log.err("{s}", .{text});
+    return 0;
+}
+
 pub fn main() void {
+    _ = c.XSetErrorHandler(xErrorHandler);
     const d: ?*c.Display = c.XOpenDisplay(0);
     if (d == null) {
         std.log.crit("Cannot open display\n", .{});
         return std.os.exit(1);
     }
     const s: i32 = std.zig.c_translation.cast(c._XPrivDisplay, d).*.default_screen;
-    const w: c.Window = c.XCreateSimpleWindow(d, screenOfDisplay(d, s).*.root, 10, 10, GWin.Width, GWin.Height, 1, screenOfDisplay(d, s).*.black_pixel, screenOfDisplay(d, s).*.white_pixel);
+    const w: c.Window = c.XCreateSimpleWindow(
+        d,
+        screenOfDisplay(d, s).*.root,
+        10,
+        10,
+        GWin.Width,
+        GWin.Height,
+        0,
+        screenOfDisplay(d, s).*.black_pixel,
+        screenOfDisplay(d, s).*.white_pixel,
+    );
     _ = c.XSelectInput(d, w, c.ExposureMask | c.KeyPressMask | c.KeyReleaseMask);
     _ = c.XMapWindow(d, w);
-    const msg = "Hello, World!";
     var e: c.XEvent = undefined;
     const size = @intCast(u32, GWin.Width * GWin.Height * 4);
     const mem = c.malloc(size);
@@ -55,12 +83,40 @@ pub fn main() void {
         GWin.Buf = @ptrCast([*]u8, m);
         GWin.BufSize = size;
     }
+    var v: c.XVisualInfo = c.XVisualInfo{
+        .visual = null,
+        .visualid = 0,
+        .screen = c.XDefaultScreen(d),
+        .depth = 32,
+        .class = 0,
+        .red_mask = 0,
+        .green_mask = 0,
+        .blue_mask = 0,
+        .colormap_size = 0,
+        .bits_per_rgb = 32,
+    };
+    var nxvisuals: c_int = 0;
+    _ = c.XGetVisualInfo(d, c.VisualScreenMask, &v, &nxvisuals);
+    if (c.XMatchVisualInfo(d, c.XDefaultScreen(d), 32, c.TrueColor, &v) == 0) {
+        std.os.exit(1);
+    }
+    const i: [*c]c.XImage = c.XCreateImage(
+        d, // Display *display
+        v.visual, // Visual *visual
+        24, // unsigned int depth
+        c.ZPixmap, // int format
+        0, // int offset
+        GWin.Buf, // char *data
+        GWin.Width, // unsigned int width
+        GWin.Height, // unsigned int height
+        8, // int bitmap_pad
+        @intCast(c_int, GWin.Width * 4), // int bytes_per_line
+    );
     while (true) {
         while (c.XPending(d) > 0) {
             _ = c.XNextEvent(d, &e);
             if (e.type == c.Expose) {
-                _ = c.XFillRectangle(d, w, screenOfDisplay(d, s).*.default_gc, @intCast(c_int, State.Player.X), @intCast(c_int, State.Player.Y), 10, 10);
-                _ = c.XDrawString(d, w, screenOfDisplay(d, s).*.default_gc, 10, 50, msg, 13);
+                _ = c.XPutImage(d, w, screenOfDisplay(d, s).*.default_gc, i, 0, 0, 0, 0, GWin.Width, GWin.Height);
             }
             if (e.type == c.KeyPress or e.type == c.KeyRelease) {
                 const Control = switch (e.xkey.keycode) {
@@ -91,7 +147,18 @@ pub fn main() void {
                 break;
             }
         }
-        _ = c.XFillRectangle(d, w, screenOfDisplay(d, s).*.default_gc, @intCast(c_int, State.Player.X), @intCast(c_int, State.Player.Y), 10, 10);
+        _ = c.XPutImage(
+            d, // Display *display
+            w, // Drawable d
+            screenOfDisplay(d, s).*.default_gc, // GC gc
+            i, // XImage *image
+            0, // int src_x
+            0, // int src_y
+            0, // int dest_x
+            0, // int dest_y
+            GWin.Width, // unsigned int width
+            GWin.Height, // unsigned int height
+        );
     }
     _ = c.XCloseDisplay(d);
 }
