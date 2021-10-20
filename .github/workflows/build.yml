@@ -14,10 +14,8 @@ jobs:
       - uses: actions/upload-artifact@v2
         with:
           name: Game
-          path: |
-            zig-out/bin/Game
+          path: zig-out/bin/Game
       - uses: actions/upload-artifact@v2
         with:
           name: Game.exe
-          path: |
-            zig-out/bin/Game.exe
+          path: zig-out/bin/Game.exe
