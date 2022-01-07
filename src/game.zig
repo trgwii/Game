@@ -30,6 +30,7 @@ pub const Controls = struct {
     Down: KeyState,
     Space: KeyState,
     Q: KeyState,
+    Mouse: struct { X: u32, Y: u32, Moved: bool },
 };
 
 pub const Result = enum {
@@ -40,7 +41,7 @@ pub const Result = enum {
 var rand = std.rand.DefaultPrng.init(0xFFFFFFFFFFFFFFFF);
 
 fn vary(variance: u8, middle: u8) u8 {
-    return @floatToInt(u8, rand.random.float(f32) * @intToFloat(f32, variance) * 2) + middle;
+    return @floatToInt(u8, rand.random().float(f32) * @intToFloat(f32, variance) * 2) + middle;
 }
 
 fn box(x: u32, y: u32, w: u32, h: u32, edges: bool, width: u32, bufSize: u32, buf: [*]u8, hue: u3) void {
@@ -111,6 +112,10 @@ pub fn loop(w: *Window, c: *Controls, s: *GameState) Result {
         if (c.Space.Changed and c.Space.Pressed) {
             s.Hue = (s.Hue + 1) % 3;
         }
+        if (c.Mouse.Moved) {
+            s.Player.X = c.Mouse.X;
+            s.Player.Y = c.Mouse.Y;
+        }
     }
     { // paint
         const Width = w.Width;
@@ -120,7 +125,7 @@ pub fn loop(w: *Window, c: *Controls, s: *GameState) Result {
         // const Y = @intCast(u32, @mod(s.OffsetY, 255));
         var i: u32 = 0;
         while (i < BufSize) {
-            if (rand.random.int(u32) < @floatToInt(u32, (4294967295 * 0.7))) {
+            if (rand.random().int(u32) < @floatToInt(u32, (4294967295 * 0.7))) {
                 i += 4;
                 continue;
             }

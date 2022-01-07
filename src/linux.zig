@@ -36,6 +36,7 @@ var Controls = Game.Controls{
     .Down = Game.KeyState{ .Changed = false, .Pressed = false },
     .Space = Game.KeyState{ .Changed = false, .Pressed = false },
     .Q = Game.KeyState{ .Changed = false, .Pressed = false },
+    .Mouse = .{ .X = 0, .Y = 0, .Moved = false },
 };
 
 var State = Game.GameState{
@@ -76,7 +77,7 @@ pub fn main() void {
     _ = c.XSetErrorHandler(xErrorHandler);
     const d: ?*c.Display = c.XOpenDisplay(0);
     if (d == null) {
-        std.log.crit("Cannot open display\n", .{});
+        std.log.err("Cannot open display\n", .{});
         return std.os.exit(1);
     }
     var frame: u64 = 0;
@@ -92,7 +93,7 @@ pub fn main() void {
         screenOfDisplay(d, s).*.black_pixel,
         screenOfDisplay(d, s).*.white_pixel,
     );
-    _ = c.XSelectInput(d, w, c.ExposureMask | c.KeyPressMask | c.KeyReleaseMask | c.StructureNotifyMask);
+    _ = c.XSelectInput(d, w, c.ExposureMask | c.KeyPressMask | c.KeyReleaseMask | c.StructureNotifyMask | c.PointerMotionMask);
     _ = c.XMapWindow(d, w);
     var e: c.XEvent = undefined;
     var v: c.XVisualInfo = c.XVisualInfo{
@@ -162,6 +163,11 @@ pub fn main() void {
                     ctrl.Pressed = Pressed;
                 }
             }
+            if (e.type == c.MotionNotify) {
+                Controls.Mouse.X = @intCast(u32, e.xmotion.x);
+                Controls.Mouse.Y = @intCast(u32, e.xmotion.y);
+                Controls.Mouse.Moved = true;
+            }
         }
         {
             const result = Game.loop(&GWin, &Controls, &State);
@@ -170,6 +176,7 @@ pub fn main() void {
             Controls.Up.Changed = false;
             Controls.Down.Changed = false;
             Controls.Space.Changed = false;
+            Controls.Mouse.Moved = false;
 
             if (result == Game.Result.Exit) {
                 break;

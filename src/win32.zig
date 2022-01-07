@@ -7,10 +7,10 @@ const c = @cImport({
 fn fail(code: u32, comptime size: u32, msg: *[size]u8) noreturn {
     const fmt = c.FormatMessageA(c.FORMAT_MESSAGE_FROM_SYSTEM, c.NULL, code, 0, msg, size, 0);
     if (fmt == 0) {
-        std.log.crit("FormatMessageA fault (Lookup code {} at https://docs.microsoft.com/en-us/windows/win32/debug/system-error-codes)", .{c.GetLastError()});
+        std.log.err("FormatMessageA fault (Lookup code {} at https://docs.microsoft.com/en-us/windows/win32/debug/system-error-codes)", .{c.GetLastError()});
     } else if (fmt != 0) {
         const prefix = if (code == 0) "(Could not get error) " else "";
-        std.log.crit("{s}{}: {s}", .{ prefix, code, msg });
+        std.log.err("{s}{}: {s}", .{ prefix, code, msg });
     }
     std.os.exit(0);
 }
@@ -45,6 +45,7 @@ var Controls = Game.Controls{
     .Down = Game.KeyState{ .Changed = false, .Pressed = false },
     .Space = Game.KeyState{ .Changed = false, .Pressed = false },
     .Q = Game.KeyState{ .Changed = false, .Pressed = false },
+    .Mouse = .{ .X = 0, .Y = 0, .Moved = false },
 };
 
 var State = Game.GameState{
@@ -113,7 +114,7 @@ fn paint() void {
         return fail(c.GetLastError(), ErrorSize, &ErrorMessage);
     }
     const loopTime = @intToFloat(f32, @divTrunc((time.QuadPart - start) *% 1000000, freq.QuadPart)) / 1000.0;
-    // std.log.crit("ms/f: {d:.3}, fps: {d:.3}", .{ loopTime, 1000 / loopTime });
+    // std.log.err("ms/f: {d:.3}, fps: {d:.3}", .{ loopTime, 1000 / loopTime });
     if (loopTime > 0 and loopTime < (1000.0 / targetFps)) {
         c.Sleep(@floatToInt(u32, 1000.0 / targetFps - loopTime));
     }
@@ -209,6 +210,12 @@ fn windowCallback(hWnd: c.HWND, Msg: c.UINT, wParam: c.WPARAM, lParam: c.LPARAM)
                 ctrl.Changed = Pressed != ctrl.Pressed;
                 ctrl.Pressed = Pressed;
             }
+            return 0;
+        },
+        c.WM_MOUSEMOVE => {
+            Controls.Mouse.X = @intCast(u32, lParam & 0xFFFF);
+            Controls.Mouse.Y = @intCast(u32, lParam >> 32);
+            Controls.Mouse.Moved = true;
             return 0;
         },
         c.WM_CLOSE,

@@ -33,6 +33,9 @@ pub fn build(b: *std.build.Builder) void {
     }
 
     const exe = b.addExecutable("Game", "src/linux.zig");
+    if (b.is_release) {
+        exe.strip = true;
+    }
     exe.setTarget(target);
     exe.setBuildMode(mode);
     exe.linkLibC();
