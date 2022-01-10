@@ -73,8 +73,8 @@ fn resize(w: c.HWND, gw: *Game.Window, s: *Screen) void {
     s.Height = @intCast(u32, rect.bottom - rect.top);
 
     // Uncomment to use real width / height
-    // gw.Width = s.Width;
-    // gw.Height = s.Height;
+    gw.Width = s.Width;
+    gw.Height = s.Height;
 
     const size = @intCast(u32, gw.Width * gw.Height * 4);
     if (size == 0) {
@@ -214,7 +214,7 @@ fn windowCallback(hWnd: c.HWND, Msg: c.UINT, wParam: c.WPARAM, lParam: c.LPARAM)
         },
         c.WM_MOUSEMOVE => {
             Controls.Mouse.X = @intCast(u32, lParam & 0xFFFF);
-            Controls.Mouse.Y = @intCast(u32, lParam >> 32);
+            Controls.Mouse.Y = @intCast(u32, lParam >> 16);
             Controls.Mouse.Moved = true;
             return 0;
         },
