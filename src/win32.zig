@@ -109,6 +109,7 @@ fn paint() void {
     Controls.Up.Changed = false;
     Controls.Down.Changed = false;
     Controls.Space.Changed = false;
+    Controls.Mouse.Moved = false;
     const start = time.QuadPart;
     if (c.QueryPerformanceCounter(@ptrCast([*c]c.LARGE_INTEGER, &time)) == 0) {
         return fail(c.GetLastError(), ErrorSize, &ErrorMessage);

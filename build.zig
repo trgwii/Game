@@ -31,6 +31,12 @@ pub fn build(b: *std.build.Builder) void {
         run_step.dependOn(&run_cmd.step);
         return;
     }
+    // if (target.cpu_arch.?.isWasm()) {
+    //     const lib = b.addStaticLibrary("Game", "src/wasm.zig");
+    //     lib.setBuildMode(mode);
+    //     lib.install();
+    //     return;
+    // }
 
     const exe = b.addExecutable("Game", "src/linux.zig");
     if (b.is_release) {
