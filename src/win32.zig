@@ -24,7 +24,6 @@ var ErrorMessage: [ErrorSize]u8 = undefined;
 var GWin = Game.Window{
     .Width = 800,
     .Height = 600,
-    .BufSize = 0,
     .Buf = undefined,
 };
 
@@ -81,14 +80,14 @@ fn resize(w: c.HWND, gw: *Game.Window, s: *Screen) void {
         return;
     }
 
-    if (gw.BufSize != 0 and c.VirtualFree(gw.Buf, 0, c.MEM_RELEASE) == 0) {
+    if (gw.Buf.len != 0 and c.VirtualFree(gw.Buf.ptr, 0, c.MEM_RELEASE) == 0) {
         return fail(c.GetLastError(), ErrorSize, &ErrorMessage);
     }
 
     const mem = c.VirtualAlloc(c.NULL, size, c.MEM_RESERVE | c.MEM_COMMIT, c.PAGE_READWRITE);
     if (mem) |m| {
-        gw.Buf = @ptrCast([*]u8, m);
-        gw.BufSize = size;
+        gw.Buf.ptr = @ptrCast([*]u8, m);
+        gw.Buf.len = size;
     } else {
         return fail(c.GetLastError(), ErrorSize, &ErrorMessage);
     }
@@ -100,7 +99,7 @@ var time: struct { QuadPart: i64 } = .{ .QuadPart = 0 };
 var frame: u64 = 0;
 
 fn paint() void {
-    if (GWin.BufSize == 0) {
+    if (GWin.Buf.len == 0) {
         return;
     }
     const result = Game.loop(&GWin, &Controls, &State);
@@ -160,7 +159,7 @@ fn paint() void {
         0,
         gameWidth,
         gameHeight,
-        GWin.Buf,
+        GWin.Buf.ptr,
         &info,
         c.DIB_RGB_COLORS,
         c.SRCCOPY,

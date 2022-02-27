@@ -3,8 +3,7 @@ const std = @import("std");
 pub const Window = struct {
     Width: u32,
     Height: u32,
-    BufSize: u32,
-    Buf: [*]u8,
+    Buf: []u8,
 };
 
 pub const GameState = struct {
@@ -44,7 +43,7 @@ fn vary(variance: u8, middle: u8) u8 {
     return @floatToInt(u8, rand.random().float(f32) * @intToFloat(f32, variance) * 2) + middle;
 }
 
-fn box(x: u32, y: u32, w: u32, h: u32, edges: bool, width: u32, bufSize: u32, buf: [*]u8, hue: u3) void {
+fn box(x: u32, y: u32, w: u32, h: u32, edges: bool, width: u32, bufSize: u32, buf: []u8, hue: u3) void {
     var row = y;
     while (row < y + h) {
         var col = x;
@@ -66,7 +65,7 @@ fn box(x: u32, y: u32, w: u32, h: u32, edges: bool, width: u32, bufSize: u32, bu
 
 const pi = 3.141592653589793;
 
-fn circle(x: u32, y: u32, r: f32, edges: bool, width: u32, bufSize: u32, buf: [*]u8, hue: u3) void {
+fn circle(x: u32, y: u32, r: f32, edges: bool, width: u32, bufSize: u32, buf: []u8, hue: u3) void {
     var i: f32 = 0;
     while (i < 360) {
         const angle = i;
@@ -118,30 +117,34 @@ pub fn loop(w: *Window, c: *Controls, s: *GameState) Result {
         }
     }
     { // paint
+        const Height = w.Height;
         const Width = w.Width;
-        const BufSize = w.BufSize;
         const Buf = w.Buf;
         // const X = @intCast(u32, @mod(s.OffsetX, 255));
         // const Y = @intCast(u32, @mod(s.OffsetY, 255));
         var i: u32 = 0;
-        while (i < BufSize) {
-            if (rand.random().int(u32) < @floatToInt(u32, (4294967295 * 0.7))) {
-                i += 4;
-                continue;
+        var row: u32 = 0;
+        while (row < Height) {
+            var col: u32 = 0;
+            while (col < Width) {
+                if (rand.random().int(u32) < @floatToInt(u32, (4294967295 * 0.7))) {
+                    col += 1;
+                    continue;
+                }
+                i = (row * Width + col) * 4;
+
+                // Clear RGBA quad (TODO: how to do this as a single u32 assignment? (check if asm already does that))
+                for (Buf[i .. i + 3]) |*d|
+                    d.* = 0;
+
+                if (row % 2 != 0 or col % 2 != 0 or row % 3 != 0) {
+                    col += 1;
+                    continue;
+                }
+                Buf[i + s.Hue] = vary(16, 64);
+                col += 1;
             }
-            const pixel = i / 4;
-            const col = @mod(pixel, Width);
-            const row = pixel / Width;
-            Buf[i] = 0; // Blue
-            Buf[i + 1] = 0; // Green
-            Buf[i + 2] = 0; // Red
-            Buf[i + 3] = 0; // XX
-            if (row % 2 != 0 or col % 2 != 0 or row % 3 != 0) {
-                i += 4;
-                continue;
-            }
-            Buf[i + s.Hue] = vary(16, 64);
-            i += 4;
+            row += 1;
         }
 
         const eight = @floatToInt(u32, @floor(0.125 * @intToFloat(f32, Width)));
@@ -149,13 +152,13 @@ pub fn loop(w: *Window, c: *Controls, s: *GameState) Result {
         const threeEights = @floatToInt(u32, @floor(0.375 * @intToFloat(f32, Width)));
         const half = @floatToInt(u32, @floor(0.5 * @intToFloat(f32, Width)));
         const tiny = 0.0625 * @intToFloat(f32, Width);
-        box(eight, eight, eight, eight, false, Width, w.BufSize, w.Buf, s.Hue);
-        box(fourth, fourth, eight, eight, true, Width, w.BufSize, w.Buf, s.Hue);
-        box(threeEights, threeEights, eight, eight, false, Width, w.BufSize, w.Buf, s.Hue);
+        box(eight, eight, eight, eight, false, Width, @intCast(u32, w.Buf.len), w.Buf, s.Hue);
+        box(fourth, fourth, eight, eight, true, Width, @intCast(u32, w.Buf.len), w.Buf, s.Hue);
+        box(threeEights, threeEights, eight, eight, false, Width, @intCast(u32, w.Buf.len), w.Buf, s.Hue);
 
-        circle(half + @floatToInt(u32, tiny), half + @floatToInt(u32, tiny), tiny, false, Width, w.BufSize, w.Buf, s.Hue);
-        circle(half + @floatToInt(u32, tiny) * 2, half + @floatToInt(u32, tiny) * 2, tiny, true, Width, w.BufSize, w.Buf, s.Hue);
-        circle(s.Player.X, s.Player.Y, 4.9, false, w.Width, w.BufSize, w.Buf, s.Hue);
+        circle(half + @floatToInt(u32, tiny), half + @floatToInt(u32, tiny), tiny, false, Width, @intCast(u32, w.Buf.len), w.Buf, s.Hue);
+        circle(half + @floatToInt(u32, tiny) * 2, half + @floatToInt(u32, tiny) * 2, tiny, true, Width, @intCast(u32, w.Buf.len), w.Buf, s.Hue);
+        circle(s.Player.X, s.Player.Y, 4.9, false, w.Width, @intCast(u32, w.Buf.len), w.Buf, s.Hue);
     }
     return Result.Ok;
 }

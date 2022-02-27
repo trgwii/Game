@@ -9,8 +9,9 @@ jobs:
         with:
           version: master
       - run: sudo apt install libx11-dev
-      - run: zig build -Drelease-fast -Dcpu=x86_64
+      - run: zig build -Dtarget=x86_64-linux -Drelease-fast -Dcpu=x86_64
       - run: zig build -Dtarget=x86_64-windows -Drelease-fast -Dcpu=x86_64
+      - run: zig build-lib -target wasm32-freestanding -dynamic -O ReleaseFast src/wasm.zig
       - uses: actions/upload-artifact@v2
         with:
           name: Game
